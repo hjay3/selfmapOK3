@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enhanced 3D Plot</title>
+    <style>
+      body  {
+        margin: 0;
+        overflow: hidden;
+        font-family: Arial,  sans-serif;
+      }
+      canvas  {
+        display: block;
+      }
+      .info-panel  {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(255,  255,  255,  0.8);
+        padding: 10px;
+        border-radius: 5px;
+        z-index: 1;
+      }
+      .info-panel button  {
+        margin-top: 10px;
+      }
+      #zoomSlider {
+        width: 200px; /* Adjust as needed */
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="info-panel">
+      <h3>3D Self Map Visualization</h3>
+      <button id="toggleImages">Toggle Images</button>
+      <button id="toggleSkybox">Toggle Skybox</button>
+      <button id="rotateScene">Rotate Scene</button>
+      <input type="range" id="zoomSlider" min="1" max="10" value="5" />
+    </div>
+    <script type="module">
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+      // Sample JSON data
+      const data = [
+        { name: 'Marriage', valence: 5, priority: 1, quadrant: 'A' },
+        { name: 'Children', valence: 10, priority: 2, quadrant: 'A' },
+        { name: 'Career', valence: 8, priority: 3, quadrant: 'B' },
+        { name: 'Social Circle', valence: 6, priority: 4, quadrant: 'C' },
+      ];
+
+      // Array of image URLs to choose from
+      const imageUrls = [
+        'https://picsum.photos/400/300?random=1',
+        'https://picsum.photos/400/300?random=2',
+        'https://picsum.photos/400/300?random=3',
+        'https://picsum.photos/400/300?random=4',
+        'https://picsum.photos/400/300?random=5',
+        'https://picsum.photos/400/300?random=6',
+        'https://picsum.photos/400/300?random=7',
+        'https://picsum.photos/400/300?random=8',
+      ];
+
+      function initScene(data) {
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add skybox (updated to load images directly)
+        const loader = new THREE.CubeTextureLoader();
+        const textureCube = loader.load([
+          'px.png', // Replace with your actual image URLs
+          'nx.png',
+          'py.png',
+          'ny.png',
+          'pz.png',
+          'nz.png',
+        ]);
+        scene.background = textureCube;
+
+        const zoomSlider = document.getElementById('zoomSlider');
+
+        zoomSlider.addEventListener('input', () => {
+          const zoomLevel = zoomSlider.value;
+          camera.position.z = zoomLevel;
+        });
+
+        const quadrants = {
+          A: new THREE.Vector3(1, 1, 0),
+          B: new THREE.Vector3(1, -1, 0),
+          C: new THREE.Vector3(-1, 1, 0),
+          D: new THREE.Vector3(-1, -1, 0),
+        };
+
+        const pointGeometry = new THREE.SphereGeometry(0.1, 32, 32);
+        const pointMaterial = new THREE.MeshStandardMaterial({
+          color: 0x00ff00,
+        });
+
+        const dataPoints = data.map((attachment, index) => {
+          const point = new THREE.Mesh(pointGeometry, pointMaterial);
+
+          // Scale down the positions to fit within the visible area
+          const positionScale = 2;
+          point.position.set(
+            (attachment.priority * quadrants[attachment.quadrant].x) /
+              positionScale,
+            (attachment.valence * quadrants[attachment.quadrant].y) /
+              positionScale,
+            0
+          );
+
+          point.userData = attachment;
+
+          /*
+          // Add labels for each data point
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          context.font = 'Bold 64px Arial';
+          context.fillStyle = '#ffffff';
+          context.fillText(attachment.name, 0, 24);
+          const texture = new THREE.CanvasTexture(canvas);
+          const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+          const label = new THREE.Sprite(labelMaterial);
+          label.scale.set(1, 0.5, 1);
+          label.position.set(
+            point.position.x,
+            point.position.y + 0.3,
+            point.position.z
+          );
+          scene.add(label);
+          */
+
+          // Add labels for each data point
+          const canvas = document.createElement('canvas');
+          const defaultWidth = 400; // Assuming default width is 300px
+          const defaultHeight = 300; // Assuming default height is 150px
+          canvas.width = defaultWidth * 1.5; // Increase width by 50%
+          canvas.height = defaultHeight; // Keep the height the same
+
+          const context = canvas.getContext('2d');
+          context.font = 'Bold 42px Arial'; // Increased font size and made it bold
+          context.fillStyle = '#1f1f1f';
+          // Construct the label text with coordinates
+          const labelText = `${attachment.name}\n(${point.position.x.toFixed(
+            1
+          )}, ${point.position.y.toFixed(1)})`;
+
+          context.fillText(labelText, 0, 32);
+          //context.fillText(attachment.name, 0, 48); // Adjusted vertical position to center text
+          const texture = new THREE.CanvasTexture(canvas);
+          const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+          const label = new THREE.Sprite(labelMaterial);
+          label.scale.set(2, 1, 1); // Increased label scale for better visibility
+          label.position.set(
+            point.position.x,
+            point.position.y + 0.6, // Adjusted vertical offset to accommodate larger label
+            point.position.z
+          );
+          scene.add(label);
+
+          // Add images for each data point
+          const imageLoader = new THREE.TextureLoader();
+          const imageMaterial = new THREE.MeshBasicMaterial({
+            map: imageLoader.load(imageUrls[index % imageUrls.length]),
+            transparent: true,
+          });
+          const imageGeometry = new THREE.PlaneGeometry(0.5, 0.5);
+          const image = new THREE.Mesh(imageGeometry, imageMaterial);
+          image.position.set(
+            point.position.x,
+            point.position.y - 0.3,
+            point.position.z
+          );
+          image.visible = false;
+          scene.add(image);
+          point.userData.image = image;
+
+          scene.add(point);
+          return point;
+        });
+
+        // Add grid helper
+        const gridHelper = new THREE.GridHelper(10, 10, 0xdddddd, 0x888888);
+        gridHelper.position.set(0, 0, -0.01);
+        scene.add(gridHelper);
+
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 3);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        directionalLight.position.set(5, 5, 5).normalize();
+        scene.add(directionalLight);
+
+        camera.position.z = 5;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let selectedPoint = null;
+
+        function onMouseMove(event) {
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+          raycaster.setFromCamera(mouse, camera);
+
+          const intersects = raycaster.intersectObjects(dataPoints);
+          if (intersects.length > 0) {
+            if (selectedPoint !== intersects[0].object) {
+              if (selectedPoint) {
+                selectedPoint.material.color.set(0x00ff00);
+                selectedPoint.userData.image.visible = false;
+              }
+              selectedPoint = intersects[0].object;
+              selectedPoint.material.color.set(0xff0000);
+              selectedPoint.userData.image.visible = true;
+            }
+          } else {
+            if (selectedPoint) {
+              selectedPoint.material.color.set(0x00ff00);
+              selectedPoint.userData.image.visible = false;
+              selectedPoint = null;
+            }
+          }
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+
+        const toggleImagesButton = document.getElementById('toggleImages');
+        toggleImagesButton.addEventListener('click', () => {
+          dataPoints.forEach((point) => {
+            point.userData.image.visible = !point.userData.image.visible;
+          });
+        });
+
+        const toggleSkyboxButton = document.getElementById('toggleSkybox');
+        toggleSkyboxButton.addEventListener('click', () => {
+          scene.background =
+            scene.background === textureCube
+              ? new THREE.Color(0x000000)
+              : textureCube;
+        });
+
+        const orbitControls = new OrbitControls(camera, renderer.domElement);
+        const rotateSceneButton = document.getElementById('rotateScene');
+        rotateSceneButton.addEventListener('click', () => {
+          orbitControls.autoRotate = !orbitControls.autoRotate;
+          orbitControls.autoRotateSpeed = orbitControls.autoRotateSpeed
+            ? 0
+            : 0.5;
+        });
+
+        // Add grid helper
+        //const gridHelper = new THREE.GridHelper(10, 10, 0xdddddd, 0x888888);
+        //gridHelper.position.set(0, 0, -0.01);
+        //scene.add(gridHelper);
+
+        // Add grid helper
+        const gridHelper2 = new THREE.GridHelper(10, 10, 0xdddddd, 0x888888);
+        gridHelper2.position.set(0, 0, -0.01);
+        scene.add(gridHelper2);
+
+        /*
+        // Add axis labels
+        const loader2 = new THREE.FontLoader();
+        loader2.load(
+          'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/fonts/helvetiker_regular.typeface.json',
+          (font) => {
+            const xLabelGeometry = new THREE.TextGeometry('Priority', {
+              font: font,
+              size: 0.3,
+              height: 0.1,
+            });
+            const xLabelMaterial = new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+            });
+            const xLabelMesh = new THREE.Mesh(xLabelGeometry, xLabelMaterial);
+            xLabelMesh.position.set(5.2, 0, 0);
+            scene.add(xLabelMesh);
+
+            const yLabelGeometry = new THREE.TextGeometry('Valence', {
+              font: font,
+              size: 0.3,
+              height: 0.1,
+            });
+            const yLabelMaterial = new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+            });
+            const yLabelMesh = new THREE.Mesh(yLabelGeometry, yLabelMaterial);
+            yLabelMesh.position.set(0, 5.2, 0);
+            yLabelMesh.rotateZ(Math.PI / 2);
+            scene.add(yLabelMesh);
+          }
+        );
+        */
+
+        function animate() {
+          requestAnimationFrame(animate);
+          orbitControls.update();
+          renderer.render(scene, camera);
+        }
+        animate();
+      }
+
+      initScene(data);
+    </script>
+  </body>
+</html>

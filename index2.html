@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enhanced 3D Plot</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from 'three';
+
+      // Sample JSON data
+      const data = [
+        { priority: 1, valence: 1, quadrant: 'A' },
+        { priority: 2, valence: 2, quadrant: 'B' },
+        { priority: 3, valence: 3, quadrant: 'C' },
+        { priority: 4, valence: 4, quadrant: 'D' },
+      ];
+
+      function initScene(data) {
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const quadrants = {
+          A: new THREE.Vector3(1, 1, 0),
+          B: new THREE.Vector3(1, -1, 0),
+          C: new THREE.Vector3(-1, 1, 0),
+          D: new THREE.Vector3(-1, -1, 0),
+        };
+
+        const pointGeometry = new THREE.SphereGeometry(0.1, 32, 32);
+        const pointMaterial = new THREE.MeshStandardMaterial({
+          color: 0x00ff00,
+        });
+
+        const dataPoints = data.map((attachment) => {
+          const point = new THREE.Mesh(pointGeometry, pointMaterial);
+          point.position.set(
+            attachment.priority * quadrants[attachment.quadrant].x,
+            attachment.valence * quadrants[attachment.quadrant].y,
+            0
+          );
+          point.userData = attachment;
+
+          // Add labels for each data point
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          context.font = 'Bold 24px Arial';
+          context.fillStyle = '#ffffff';
+          context.fillText(
+            `(${attachment.priority}, ${attachment.valence})`,
+            0,
+            24
+          );
+          const texture = new THREE.CanvasTexture(canvas);
+          const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+          const label = new THREE.Sprite(labelMaterial);
+          label.scale.set(1, 0.5, 1);
+          label.position.set(
+            point.position.x,
+            point.position.y + 0.3,
+            point.position.z
+          );
+          scene.add(label);
+
+          scene.add(point);
+          return point;
+        });
+
+        // Add grid helper
+        const gridHelper = new THREE.GridHelper(10, 10);
+        scene.add(gridHelper);
+
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5).normalize();
+        scene.add(directionalLight);
+
+        camera.position.z = 5;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let selectedPoint = null;
+
+        function onMouseMove(event) {
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+          raycaster.setFromCamera(mouse, camera);
+
+          const intersects = raycaster.intersectObjects(dataPoints);
+          if (intersects.length > 0) {
+            if (selectedPoint !== intersects[0].object) {
+              if (selectedPoint) {
+                selectedPoint.material.color.set(0x00ff00);
+              }
+              selectedPoint = intersects[0].object;
+              selectedPoint.material.color.set(0xff0000);
+            }
+          } else {
+            if (selectedPoint) {
+              selectedPoint.material.color.set(0x00ff00);
+              selectedPoint = null;
+            }
+          }
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+
+        function animate() {
+          requestAnimationFrame(animate);
+          renderer.render(scene, camera);
+        }
+        animate();
+      }
+
+      initScene(data);
+    </script>
+  </body>
+</html>
